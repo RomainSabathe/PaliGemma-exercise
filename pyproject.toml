@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "paligemma"
+version = "0.1.0"
+description = ""
+authors = ["RomainSabathe <RSabathe@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+torch = "^2.4.0"
+torchvision = "^0.19.0"
+pytest = "^8.3.2"
+einops = "^0.8.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
