@@ -12,6 +12,10 @@ class ViTConfiguration:
     hidden_size: int = 1_024  # "latent vector size D" in the paper
     patch_size: int = 16
 
+    @property
+    def num_patches(self) -> int:
+        return self.image_size**2 // self.patch_size**2
+
 
 @dataclass
 class SigLipVisionConfiguration:
@@ -26,17 +30,18 @@ class SigLipVisionModel(nn.Module):
 
 
 @dataclass
-class PatchEmbedderConfiguration(nn.Module):
+class ImageTokenizerConfiguration(nn.Module):
     in_channels: int = 3
-    patch_size: int = 3
+    patch_size: int = 16
     embedding_size: int = 1_024
 
 
-class PatchEmbedder(nn.Module):
-    def __init__(self, configuration: PatchEmbedderConfiguration):
-        super(PatchEmbedder, self).__init__()
+class ImageTokenizer(nn.Module):
+    def __init__(self, configuration: ImageTokenizerConfiguration):
+        super(ImageTokenizer, self).__init__()
 
         # Q: what is the relationship between the token dimensions and the hidden dimension?
+        # A: they're the same. (ViT has only one hidden dim throughout)
         self.conv2d = nn.Conv2d(
             in_channels=configuration.in_channels,
             out_channels=configuration.embedding_size,
@@ -45,17 +50,18 @@ class PatchEmbedder(nn.Module):
             padding="valid",
         )
 
-    def forward(self, patches_nchw: torch.Tensor) -> torch.Tensor:
-        # Returns shape [n, d] where d = embedding_size
-        return self.conv2d(patches_nchw)
+    def forward(self, imgs_bchw: torch.Tensor) -> torch.Tensor:
+        # Returns shape [b, p, d] where d = embedding_size
+        feature_maps_bdphpw = self.conv2d(
+            imgs_bchw
+        )  # where d = embedding dim and ph/pw = the number of patches in both directions
+        return einops.rearrange(feature_maps_bdphpw, "b d ph pw -> b (ph pw) d")
 
 
-class PositionalEmbedder(nn.Module):
-    def __init__(self):
-        super(PositionalEmbedder, self).__init__()
-
-    def initial_positional_embeddings(self):
-        pass
+def get_initial_positional_embeddings(
+    num_patches: int, embedding_size: int
+) -> torch.Tensor:
+    return nn.Parameter(torch.randn(num_patches, embedding_size))
 
 
 class TransformerEncoder(nn.Module):
@@ -73,15 +79,16 @@ class ViT(nn.Module):
         super(ViT, self).__init__()
         self.configuration = configuration
 
-        patch_embedder_configuration = PatchEmbedderConfiguration(
+        patch_embedder_configuration = ImageTokenizerConfiguration(
             in_channels=configuration.in_channels,
             embedding_size=configuration.hidden_size,
             patch_size=configuration.patch_size,
         )
-        self.patch_embedder = PatchEmbedder(patch_embedder_configuration)
+        self.patch_embedder = ImageTokenizer(patch_embedder_configuration)
         # Q: is this really the right way of writing/initialising the positional embedding?
-        self.positional_embeddings = (
-            PositionalEmbedder().initial_positional_embeddings()
+        self.positional_embeddings = get_initial_positional_embeddings(
+            num_patches=configuration.num_patches,
+            embedding_size=configuration.hidden_size,
         )
         self.encoder = TransformerEncoder()
         self.classification_head = ClassificationHead()
@@ -95,21 +102,11 @@ class ViT(nn.Module):
         patches_embeddings_nd = self.patch_embedder(patches_nchw)
         patches_embeddings_nd += self.positional_embeddings
 
+        # TODO: add the special classification token
+
         input_tokens_nd = patches_embeddings_nd
         output_tokens_nd = self.encoder(input_tokens_nd)
-
-        # TODO: add the special classification token
 
         # Q: what is this module supposed to return? Just the transformation of the classification token?
         #    the list of output embeddings?
         return output_tokens_nd
-
-
-def break_images_into_patches(imgs_bchw: torch.Tensor, patch_size: int) -> torch.Tensor:
-    # Q: is there a better way of spitting the image into patches?
-    return einops.rearrange(
-        imgs_bchw,
-        "b c (h ph) (w pw) -> (b h w) c ph pw",
-        ph=patch_size,
-        pw=patch_size,
-    )
