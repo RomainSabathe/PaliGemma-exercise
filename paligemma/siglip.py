@@ -28,7 +28,7 @@ class SigLipVisionModel(nn.Module):
 @dataclass
 class PatchEmbedderConfiguration(nn.Module):
     in_channels: int = 3
-    kernel_size: int = 3
+    patch_size: int = 3
     embedding_size: int = 1_024
 
 
@@ -39,8 +39,10 @@ class PatchEmbedder(nn.Module):
         # Q: what is the relationship between the token dimensions and the hidden dimension?
         self.conv2d = nn.Conv2d(
             in_channels=configuration.in_channels,
-            out_channels=configuration.kernel_size,
-            kernel_size=configuration.kernel_size,
+            out_channels=configuration.embedding_size,
+            kernel_size=configuration.patch_size,
+            stride=configuration.patch_size,
+            padding="valid",
         )
 
     def forward(self, patches_nchw: torch.Tensor) -> torch.Tensor:
@@ -74,6 +76,7 @@ class ViT(nn.Module):
         patch_embedder_configuration = PatchEmbedderConfiguration(
             in_channels=configuration.in_channels,
             embedding_size=configuration.hidden_size,
+            patch_size=configuration.patch_size,
         )
         self.patch_embedder = PatchEmbedder(patch_embedder_configuration)
         # Q: is this really the right way of writing/initialising the positional embedding?
