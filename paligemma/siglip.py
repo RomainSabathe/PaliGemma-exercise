@@ -125,11 +125,27 @@ class TransformerBlockConfiguration:
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self):
+    def __init__(self, hidden_dim: int, num_heads: int = 8, k_dim: int | None = None, v_dim: int |None  = None):
         super(MultiHeadAttention, self).__init__()
 
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.k_dim = k_dim if k_dim is not None else hidden_dim
+        self.v_dim = v_dim if v_dim is not None else hidden_dim
+
+        (QK) V
+
+        # Hello! If you're back, know that we are trying to figure out an efficient way of
+        # implementing multihead attention. Should we have independent Attention modules, or
+        # is there a way of batching everything under a single operation? For instance via a
+        # (num_heads out_feat in_feat) weight matrix.
+        self.k_projectors = nn.Linear(in_features=hidden_dim, out_features=k_dim)
+        self.k_projectors = 
+        self.
+
     def forward(self, x_bnd: torch.Tensor) -> torch.Tensor:
-        pass
+
+        
 
 
 class MLP(nn.Module):
